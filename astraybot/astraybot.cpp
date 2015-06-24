@@ -13,6 +13,7 @@
 #include <condition_variable>
 #include <cassert>
 #include <chrono>
+#include <thread>
 
 #define CHECK_RET(x,cond) do { auto check_ret = (x); if(!(check_ret cond)) { std::printf("Error:%s:%d: " #x " failed condition " #cond "\n", __FILE__, __LINE__);} } while(false)
 
@@ -43,6 +44,17 @@ struct IrcConnection
 
 	volatile bool m_stopping = false;
 
+	std::thread m_recThread;
+
+	void send(const std::string& msg) const
+	{
+		WSABUF buf;
+		buf.buf = const_cast<char*>(msg.c_str());
+		buf.len = static_cast<ULONG>(msg.size());
+
+		WSASend(m_socket, &buf, 1, nullptr, 0, nullptr, nullptr);
+	}
+
 	IrcConnection(std::string nick, std::string server, std::string pass, uint16_t port)
 		: m_nick(std::move(nick))
 		, m_server(std::move(server))
@@ -65,11 +77,13 @@ struct IrcConnection
 		}
 
 		std::string sendBuffer = "PASS " + pass + "\r\n";
+		sendBuffer += "NICK " + m_nick + "\r\n";
+		send(sendBuffer);
 
-		WSABUF sent{};
-		sent.buf = const_cast<LPSTR>(sendBuffer.c_str());
-		sent.len = static_cast<ULONG>(sendBuffer.size());
-		WSASend(m_socket, &sent, 1, nullptr, 0, nullptr, nullptr);
+		m_recThread = std::thread([this] 
+		{
+			readLoop();
+		});
 	}
 
 	MsgBuffer* getBuffer()
@@ -174,6 +188,11 @@ struct IrcConnection
 			CHECK_RET(closesocket(m_socket), != SOCKET_ERROR);
 		}
 	}
+
+	bool finished() const
+	{
+	return m_stopping;
+	}
 };
 
 int _tmain(int argc, _TCHAR* argv[])
@@ -188,7 +207,12 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 
-	IrcConnection connection(nick, server, pass, 6667);;
+	IrcConnection connection(nick, server, pass, 6667);
+
+	while (!connection.finished())
+	{
+		// spin;
+	}
 
 
 	return 0;
