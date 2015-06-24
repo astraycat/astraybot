@@ -26,3 +26,13 @@
 *.exe
 *.out
 *.app
+
+#Intellisense
+*.opensdf
+*.sdf
+ipch/
+.vs/
+
+#Build directories
+Debug/
+Release/
