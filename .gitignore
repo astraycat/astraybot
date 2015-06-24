@@ -36,3 +36,4 @@ ipch/
 #Build directories
 Debug/
 Release/
+*.user
