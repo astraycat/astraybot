@@ -46,13 +46,36 @@ struct IrcConnection
 
 	std::thread m_recThread;
 
+	void send(const char* const msg, size_t len) const
+	{
+		WSABUF buf{};
+		buf.buf = const_cast<char*>(msg);
+		buf.len = static_cast<ULONG>(len);
+
+		DWORD bytesSent = buf.len;
+		CHECK_RET(WSASend(m_socket, &buf, 1, &bytesSent, 0, nullptr, nullptr), == 0);
+	}
+
+	void sendLoop()
+	{
+		ULock l(m_sendMutex);
+		if (!m_outgoingCommands.empty())
+		{
+			auto msg = m_outgoingCommands.front();
+			m_outgoingCommands.pop();
+
+			send(msg->data(), strlen(msg->data()));
+		}
+	}
+
 	void send(const std::string& msg) const
 	{
 		WSABUF buf;
 		buf.buf = const_cast<char*>(msg.c_str());
 		buf.len = static_cast<ULONG>(msg.size());
 
-		WSASend(m_socket, &buf, 1, nullptr, 0, nullptr, nullptr);
+		DWORD bytesSent = buf.len;
+		CHECK_RET(WSASend(m_socket, &buf, 1, &bytesSent, 0, nullptr, nullptr), == 0);
 	}
 
 	IrcConnection(std::string nick, std::string server, std::string pass, uint16_t port)
@@ -76,9 +99,13 @@ struct IrcConnection
 			throw std::exception("failed to connect");
 		}
 
+		printf("%s\n", server.c_str());
+
 		std::string sendBuffer = "PASS " + pass + "\r\n";
 		sendBuffer += "NICK " + m_nick + "\r\n";
 		send(sendBuffer);
+
+		printf("%s:%s\n", m_nick.c_str(), pass.c_str());
 
 		m_recThread = std::thread([this] 
 		{
@@ -117,12 +144,13 @@ struct IrcConnection
 				DWORD flags = MSG_PUSH_IMMEDIATE;
 				DWORD bytesReceived = 0;
 				WSARecv(m_socket, &buf, 1, &bytesReceived, &flags, false, nullptr);
+				std::printf("blah %d\n", bytesReceived);
 
 				char next = '\r';
 				uint64_t j = 0;
 				for (; !hasCommand && j < bytesReceived && ((i + j) < maxIrcMsgLength); ++j)
 				{
-					auto& v = buffer[i + j];
+					auto& v = *(buf.buf + (i + j));
 					if (v == next)
 					{
 						if (next == '\r')
