@@ -49,12 +49,12 @@ namespace
 		return 1;
 	}
 
-	int registerRawMessageHandler(lua_State* L)
+	int registerHandler(lua_State* L, const char* const tableName)
 	{
 		if (lua_isfunction(L, 1))
 		{
 			lua_getglobal(L, "__asb");
-			lua_getfield(L, -1, "rawMessageHandlers");
+			lua_getfield(L, -1, tableName);
 			lua_len(L, -1);
 			lua_pushinteger(L, 1);
 			lua_arith(L, LUA_OPADD);
@@ -69,24 +69,19 @@ namespace
 		return 0;
 	}
 
+	int registerRawMessageHandler(lua_State* L)
+	{
+		return registerHandler(L, "rawMessageHandlers");
+	}
+
 	int registerChannelMessageHandler(lua_State* L)
 	{
-		if (lua_isfunction(L, 1))
-		{
-			lua_getglobal(L, "__asb");
-			lua_getfield(L, -1, "channelMessageHandlers");
-			lua_len(L, -1);
-			lua_pushinteger(L, 1);
-			lua_arith(L, LUA_OPADD);
-			lua_pushvalue(L, 1);
-			lua_settable(L, -3);
-			lua_pop(L, 2);
-		}
-		else
-		{
-			printf("Error: can only register functions.\n");
-		}
-		return 0;
+		return registerHandler(L, "channelMessageHandlers");
+	}
+
+	int registerFinalizer(lua_State* L)
+	{
+		return registerHandler(L, "finalizers");
 	}
 }
 
@@ -99,8 +94,6 @@ LuaWrapper::LuaWrapper(IrcConnection* ircConnection)
 	assert(m_L);
 
 	luaL_openlibs(m_L);
-
-
 
 	// create our private table
 	lua_newtable(m_L); // 1
@@ -115,6 +108,9 @@ LuaWrapper::LuaWrapper(IrcConnection* ircConnection)
 	lua_newtable(m_L); // 2
 	lua_setfield(m_L, -2, "channelMessageHandlers"); // 1
 
+	lua_newtable(m_L); // 2
+	lua_setfield(m_L, -2, "finalizers"); // 1
+
 	lua_pushcfunction(m_L, &dumpLuaStack);
 	lua_setfield(m_L, -2, "dumpfunc");
 	
@@ -128,6 +124,8 @@ LuaWrapper::LuaWrapper(IrcConnection* ircConnection)
 	// expose RegisterChannelMessageHandler
 	lua_pushcfunction(m_L, &registerChannelMessageHandler); // 2
 	lua_setfield(m_L, -2, "RegisterChannelMessageHandler"); // 1
+	lua_pushcfunction(m_L, &registerFinalizer);
+	lua_setfield(m_L, -2, "RegisterFinalizer");
 	// expose sendMessage
 	lua_pushcfunction(m_L, [](lua_State* L)->int
 	{
@@ -166,50 +164,64 @@ LuaWrapper::LuaWrapper(IrcConnection* ircConnection)
 	lua_pop(m_L, 2);
 }
 
+namespace
+{
+	void push(lua_State* L, const std::string& arg)
+	{
+		lua_pushstring(L, arg.c_str());
+	}
+
+	void push(lua_State* L, bool v)
+	{
+		lua_pushboolean(L, v);
+	}
+
+	template<typename T, typename...Args>
+	void pushArgs(lua_State* L, T&& arg, Args&&...args)
+	{
+		push(L, std::forward<T>(arg));
+		pushArgs(L, std::forward<Args>(args)...);
+	}
+	void pushArgs(lua_State* L)
+	{}
+	template<typename... Args>
+	void doFunc(lua_State* L, const char* const table, Args&&...args)
+	{
+		lua_getglobal(L, "__asb"); // 1
+		lua_getfield(L, -1, "dumpfunc"); // 2
+
+		int msghandler = lua_gettop(L);
+
+		lua_getfield(L, -2, table); // 3
+	
+		lua_pushnil(L); // 4
+
+		while (lua_next(L, -2) != 0) 
+		{
+			// 5
+			pushArgs(L, std::forward<Args>(args)...);
+			if (lua_pcall(L, sizeof...(Args), 0, msghandler) != LUA_OK)
+			{
+				return;
+			}
+		} // 3
+
+		lua_pop(L, 3);
+	}
+}
 
 void LuaWrapper::handleRawIncomingMessage(const std::string& message)
 {
-	lua_getglobal(m_L, "__asb"); // 1
-	lua_getfield(m_L, -1, "dumpfunc"); // 2
-	lua_getfield(m_L, -2, "rawMessageHandlers"); // 3
-	
-	lua_pushnil(m_L); // 4
-
-	while (lua_next(m_L, -2) != 0) 
-	{
-		// 5
-		lua_pushstring(m_L, message.c_str()); // 6
-		lua_pcall(m_L, 1, 0, 0); // 4
-	} // 3
-
-	lua_pop(m_L, 3);
+	doFunc(m_L, "rawMessageHandlers", message);
 }
 
 void LuaWrapper::handleChannelMessage(const std::string& user, const std::string& displayName, const std::string& message, bool isMod)
 {
-	lua_getglobal(m_L, "__asb"); // 1
-	lua_getfield(m_L, -1, "dumpfunc"); // 2
-	lua_getfield(m_L, -2, "channelMessageHandlers"); // 3
-	
-	lua_pushnil(m_L); // 4
-
-	while (lua_next(m_L, -2) != 0) 
-	{
-		// 5
-		lua_pushstring(m_L, user.c_str()); // 6
-		lua_pushstring(m_L, displayName.c_str()); // 7
-		lua_pushstring(m_L, message.c_str()); // 8
-		lua_pushboolean(m_L, isMod); // 9
-		if (lua_pcall(m_L, 4, 0, -8) != LUA_OK) // 4
-		{
-			return;
-		}
-	} // 3
-
-	lua_pop(m_L, 3);
+	doFunc(m_L, "channelMessageHandlers", user, displayName, message, isMod);
 }
 
 LuaWrapper::~LuaWrapper()
 {
+	doFunc(m_L, "finalizers");
 	lua_close(m_L);
 }

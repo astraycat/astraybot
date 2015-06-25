@@ -20,6 +20,23 @@ function addPlayerToList(user, displayName)
 	end
 end
 
+function removePlayerFromList(player)
+	if list[player] ~= nil then
+		displayName = list[player]
+		list[player] = nil
+		cur = next(ordered_list)
+		while cur ~= nil do
+			if ordered_list[cur] == player then
+				table.remove(ordered_list, cur)
+			end
+			cur = next(ordered_list, cur)
+		end
+		asb.SendMessage("Player "..displayName.." removed from the list.")
+	else
+		asb.SendMessage("Player "..displayName.." not found on the list.")
+	end
+end
+
 function channelMessageHandler(user, displayName, message, isMod)
 	if message == "!joinlist" or message == "!join" or message == "!enter" then
 		addPlayerToList(user, displayName)
@@ -47,6 +64,8 @@ function channelMessageHandler(user, displayName, message, isMod)
 		end
 
 		asb.SendMessage(listString)
+	elseif message == "!drop" or message == "!droplist" or message == "!leave" then
+		removePlayerFromList(user)
 	elseif isMod and message == "!open" then
 		listOpen = true
 		asb.SendMessage("List is now open!")
@@ -77,23 +96,15 @@ function channelMessageHandler(user, displayName, message, isMod)
 		match = string.match(message, "!remove (%w+)")
 		if match ~= nil then
 			player = string.lower(match)
-			if list[player] ~= nil then
-				list[player] = nil
-				cur = next(ordered_list)
-				while cur ~= nil do
-					if ordered_list[cur] == player then
-						table.remove(ordered_list, cur)
-					end
-					cur = next(ordered_list, cur)
-				end
-				asb.SendMessage("Player "..match.." removed from the list.")
-			else
-				asb.SendMessage("Player "..match.." not found on the list.")
-			end
+			removePlayerFromList(player)
 		end 
 	end
 end
 
+function finalize()
+end
+
 --asb.RegisterRawMessageHandler(rawMessageHandler)
 asb.RegisterChannelMessageHandler(channelMessageHandler)
+asb.RegisterFinalizer(finalize)
 
