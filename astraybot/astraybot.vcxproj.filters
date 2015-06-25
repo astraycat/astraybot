@@ -105,6 +105,12 @@
     <ClInclude Include="lib\lua-5.3.1\src\lzio.h">
       <Filter>lua</Filter>
     </ClInclude>
+    <ClInclude Include="LuaWrapper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IrcConnection.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -211,6 +217,12 @@
     </ClCompile>
     <ClCompile Include="lib\lua-5.3.1\src\lzio.c">
       <Filter>lua</Filter>
+    </ClCompile>
+    <ClCompile Include="LuaWrapper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="IrcConnection.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
