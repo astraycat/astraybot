@@ -205,7 +205,7 @@ void IrcConnection::handleIncoming()
 	//> @color=;display-name=Astraycat;emotes=50497:0-8;subscriber=0;turbo=0;user-type=mod :astraycat!astraycat@astraycat.tmi.twitch.tv PRIVMSG #astraybot :dkwExpand
 	std::regex msgRegex{ R"(@(\S*) ?:(\S+) (\S+) (\S+) :(.*))" };
 
-	LuaWrapper lua{ this };
+	std::unique_ptr<LuaWrapper> lua{ new LuaWrapper(this) };
 
 	while (!m_stopping)
 	{
@@ -230,7 +230,7 @@ void IrcConnection::handleIncoming()
 			}
 			else
 			{
-				lua.handleRawIncomingMessage(*msg);
+				lua->handleRawIncomingMessage(*msg);
 
 				std::smatch matches;
 				if (std::regex_match(*msg, matches, msgRegex))
@@ -245,8 +245,14 @@ void IrcConnection::handleIncoming()
 							auto display = extractDisplayName(matches[1]);
 							auto message = matchToBuf(matches[5]);
 							auto isMod = extractIsMod(matches[1]);
+							
+							if (isMod && *message == "!reload")
+							{
+								lua.reset();
+								lua.reset(new LuaWrapper(this));
+							}
 
-							lua.handleChannelMessage(*user, *display, *message, isMod);
+							lua->handleChannelMessage(*user, *display, *message, isMod);
 						}
 					}
 				}
@@ -280,7 +286,7 @@ void IrcConnection::sendMessage(const char* msg)
 	auto buf = getBuffer();
 	*buf = "PRIVMSG ";
 	*buf += m_channel;
-	*buf += " ";
+	*buf += " :";
 	*buf += msg;
 	send(std::move(buf));
 }

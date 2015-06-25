@@ -36,6 +36,19 @@ namespace
 		return irc;
 	}
 
+	int dumpLuaStack(lua_State* L)
+	{
+		lua_Debug ar;
+		int i = 0;
+		while (lua_getstack(L, i++, &ar) == 1)
+		{
+			lua_getinfo(L, "nSl", &ar);
+			assert(lua_isstring(L, 1));
+			printf("%s:%d:%s\n", ar.short_src, ar.currentline, lua_tostring(L, 1));
+		}
+		return 1;
+	}
+
 	int registerRawMessageHandler(lua_State* L)
 	{
 		if (lua_isfunction(L, 1))
@@ -43,9 +56,8 @@ namespace
 			lua_getglobal(L, "__asb");
 			lua_getfield(L, -1, "rawMessageHandlers");
 			lua_len(L, -1);
-			auto newIndex = lua_tointeger(L, -1) + 1;
-			lua_pop(L, 1);
-			lua_pushinteger(L, newIndex);
+			lua_pushinteger(L, 1);
+			lua_arith(L, LUA_OPADD);
 			lua_pushvalue(L, 1);
 			lua_settable(L, -3);
 			lua_pop(L, 2);
@@ -64,9 +76,8 @@ namespace
 			lua_getglobal(L, "__asb");
 			lua_getfield(L, -1, "channelMessageHandlers");
 			lua_len(L, -1);
-			auto newIndex = lua_tointeger(L, -1) + 1;
-			lua_pop(L, 1);
-			lua_pushinteger(L, newIndex);
+			lua_pushinteger(L, 1);
+			lua_arith(L, LUA_OPADD);
 			lua_pushvalue(L, 1);
 			lua_settable(L, -3);
 			lua_pop(L, 2);
@@ -103,6 +114,9 @@ LuaWrapper::LuaWrapper(IrcConnection* ircConnection)
 	
 	lua_newtable(m_L); // 2
 	lua_setfield(m_L, -2, "channelMessageHandlers"); // 1
+
+	lua_pushcfunction(m_L, &dumpLuaStack);
+	lua_setfield(m_L, -2, "dumpfunc");
 	
 	lua_setglobal(m_L, "__asb"); // 0
 
@@ -135,46 +149,64 @@ LuaWrapper::LuaWrapper(IrcConnection* ircConnection)
 	lua_setfield(m_L, -2, "SendMessage"); // 1
 	lua_setglobal(m_L, "asb"); // 0
 
-	CHECK_LUA(luaL_loadfile(m_L, "scripts/test.lua"));
-	CHECK_LUA(lua_pcall(m_L, 0, LUA_MULTRET, 0));
+	lua_getglobal(m_L, "__asb");
+	lua_getfield(m_L, -1, "dumpfunc");
+
+	if (luaL_loadfile(m_L, "scripts/test.lua") != LUA_OK)
+	{
+		assert(lua_isstring(m_L, -1));
+		printf("Error loading file: %s\n", lua_tostring(m_L, -1));
+		lua_pop(m_L, 2);
+	}
+	else
+	{
+		CHECK_LUA(lua_pcall(m_L, 0, 0, -2));
+	}
+
+	lua_pop(m_L, 2);
 }
 
 
 void LuaWrapper::handleRawIncomingMessage(const std::string& message)
 {
 	lua_getglobal(m_L, "__asb"); // 1
-	lua_getfield(m_L, -1, "rawMessageHandlers"); // 2
+	lua_getfield(m_L, -1, "dumpfunc"); // 2
+	lua_getfield(m_L, -2, "rawMessageHandlers"); // 3
 	
-	lua_pushnil(m_L); // 3
+	lua_pushnil(m_L); // 4
 
 	while (lua_next(m_L, -2) != 0) 
 	{
-		// 4
-		lua_pushstring(m_L, message.c_str()); // 5
-		lua_pcall(m_L, 1, 0, 0); // 3
-	} // 2
+		// 5
+		lua_pushstring(m_L, message.c_str()); // 6
+		lua_pcall(m_L, 1, 0, 0); // 4
+	} // 3
 
-	lua_pop(m_L, 2);
+	lua_pop(m_L, 3);
 }
 
 void LuaWrapper::handleChannelMessage(const std::string& user, const std::string& displayName, const std::string& message, bool isMod)
 {
 	lua_getglobal(m_L, "__asb"); // 1
-	lua_getfield(m_L, -1, "channelMessageHandlers"); // 2
+	lua_getfield(m_L, -1, "dumpfunc"); // 2
+	lua_getfield(m_L, -2, "channelMessageHandlers"); // 3
 	
-	lua_pushnil(m_L); // 3
+	lua_pushnil(m_L); // 4
 
 	while (lua_next(m_L, -2) != 0) 
 	{
-		// 4
-		lua_pushstring(m_L, user.c_str()); // 5
-		lua_pushstring(m_L, displayName.c_str()); // 6
-		lua_pushstring(m_L, message.c_str()); // 7
-		lua_pushboolean(m_L, isMod); // 8
-		lua_pcall(m_L, 4, 0, 0); // 3
-	} // 2
+		// 5
+		lua_pushstring(m_L, user.c_str()); // 6
+		lua_pushstring(m_L, displayName.c_str()); // 7
+		lua_pushstring(m_L, message.c_str()); // 8
+		lua_pushboolean(m_L, isMod); // 9
+		if (lua_pcall(m_L, 4, 0, -8) != LUA_OK) // 4
+		{
+			return;
+		}
+	} // 3
 
-	lua_pop(m_L, 2);
+	lua_pop(m_L, 3);
 }
 
 LuaWrapper::~LuaWrapper()
