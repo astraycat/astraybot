@@ -102,6 +102,7 @@ function channelMessageHandler(user, displayName, message, isMod)
 end
 
 function finalize()
+
 end
 
 --asb.RegisterRawMessageHandler(rawMessageHandler)
