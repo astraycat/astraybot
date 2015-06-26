@@ -1,24 +1,26 @@
 ordered_list = {}
 list = {}
 records = {}
-listOpen = true
+listOpen = false
 
 file = io.open("data/list.txt", "r")
 if file then
 	for line in file:lines("l") do
-		displayName = string.match(line, "(%w+)")
+		displayName = string.match(line, "([%w_]+)")
 		if displayName ~= nil then
 			user = string.lower(displayName)
 			list[user] = displayName
 			table.insert(ordered_list, user)
 		end
 	end
+	file:close()
 end
 file = io.open("data/records.txt", "r")
 if file then
 	for line in file:lines("l") do
-		user, wins, losses = string.match(line, "(%w+),(%d+),(%d+)")
+		user, wins, losses = string.match(line, "([%w_]+),(%d+),(%d+)")
 		if user ~= nil and wins ~= nil and losses ~= nil then
+			user = string.lower(user)
 			wins = tonumber(wins)
 			losses = tonumber(losses)
 			if wins ~= nil and losses ~= nil then
@@ -28,7 +30,14 @@ if file then
 			end
 		end
 	end
-	io.close(file)
+	file:close()
+end
+file = io.open("data/open.txt", "r")
+if file then
+	for line in file:lines("l") do
+		listOpen = line == "true"
+	end
+	file:close()
 end
 
 function finalize()
@@ -42,8 +51,15 @@ function finalize()
 	file = io.open("data/list.txt", "w")
 	cur = next(ordered_list)
 	while cur ~= nil do
-		file:write(ordered_list[cur].."\n")
+		file:write(list[ordered_list[cur] ].."\n")
 		cur = next(ordered_list, cur)
+	end
+	file:close()
+	file = io.open("data/open.txt", "w")
+	if listOpen then
+		file:write("true\n")
+	else
+		file:write("false\n")
 	end
 	file:close()
 end
@@ -66,6 +82,7 @@ function addPlayerToList(user, displayName)
 		else
 			asb.SendMessage("User "..displayName.." added to the list. There are ".. (#ordered_list - 1).." players ahead of you.")
 		end
+		updateChallengerText()
 	end
 end
 
@@ -99,11 +116,10 @@ commandHandlers["!enter"] = commandHandlers["!join"]
 
 commandHandlers["!list"] = function(user, displayName, isMod, command, arg)
 	if not listOpen then
-		asb.SendMessage("List is currently closed.")
-		return
+		asb.SendMessage("List is closed.")
 	end
 	cur = next(ordered_list)
-	if cur == nil then
+	if cur == nil and listOpen then
 		asb.SendMessage("List is currently empty. Use !join to join the list!")
 		return
 	end
@@ -155,11 +171,11 @@ function updateChallengerText()
 	front = next(ordered_list)
 	if front ~= nil then
 		file = io.open("outputs/player.txt", "w")
-		file:write(list[ordered_list[front] ])
+		file:write("Challenger: "..list[ordered_list[front] ])
 		file:close()
 	else
 		file = io.open("outputs/player.txt", "w")
-		file:write("no challengers")
+		file:write("No challengers")
 		file:close()
 	end
 end
@@ -170,10 +186,11 @@ commandHandlers["!next"] = function(user, displayName, isMod, command, arg)
 	if not isMod then return end
 	front = next(ordered_list)
 	if front ~= nil then
-		player = list[ordered_list[front] ]
-		list[ordered_list[front] ] = nil
+		player = ordered_list[front]
+		display = list[player]
+		list[player] = nil
 
-		if records[player] == nil then
+		if (command == "!win" or command == "!loss") and records[player] == nil then
 			records[player] = {}
 			records[player].wins = 0
 			records[player].losses = 0
@@ -185,7 +202,7 @@ commandHandlers["!next"] = function(user, displayName, isMod, command, arg)
 			records[player].losses = records[player].losses + 1
 		end
 
-		asb.SendMessage("Good games "..player.."! Use !join if you'd like to rejoin the list.")
+		asb.SendMessage("Good games "..display.."! Use !join if you'd like to rejoin the list.")
 		table.remove(ordered_list, front)
 
 		front = next(ordered_list)
@@ -212,7 +229,7 @@ end
 commandHandlers["!record"] = function(user, displayName, isMod, command, arg)
 	player = user
 	display = displayName
-	if arg ~= "" then
+	if isMod and arg ~= "" then
 		player = string.lower(arg)
 		display = arg
 	end
@@ -230,10 +247,14 @@ commandHandlers["!resetrecord"] = function(user, displayName, isMod, command, ar
 	asb.SendMessage("Record for player "..arg.." reset.")
 end
 
+commandHandlers["!howto"] = function(user, displayName, isMod, command, arg)
+	asb.SendMessage('To join the list say "join!". To drop from the list say "!drop". To see the list type "!list". To see your record, type "!record"')
+end
 
+commandHandlers["!help"] = commandHandlers["!howto"]
 
 function channelMessageHandler(user, displayName, message, isMod)
-	command, arg = string.match(message, "(!%w+) ?(%w*)")
+	command, arg = string.match(message, "(!%w+) ?([%w_]*)")
 	if command == nil then
 		return
 	end

@@ -251,6 +251,11 @@ void IrcConnection::handleIncoming()
 								lua.reset();
 								lua.reset(new LuaWrapper(this));
 							}
+							else if (isMod && *message == "!quit")
+							{
+								m_stopping = true;
+								return;
+							}
 
 							lua->handleChannelMessage(*user, *display, *message, isMod);
 						}
@@ -308,6 +313,10 @@ void IrcConnection::sendLoop()
 		while (m_outgoingCommands.empty())
 		{
 			m_sendCond.wait(l);
+			if (m_stopping)
+			{
+				return;
+			}
 		}
 
 
