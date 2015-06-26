@@ -3,15 +3,6 @@ list = {}
 records = {}
 listOpen = true
 
---nnids = {}
---file = io.open("nnids.txt", "r")
---for line in file:lines("l") do
---	user, nnid = string.match("(%w+),(%w+)")
---	if user ~= nil and nnid ~= nil then
---		nnids[user] = nnid
---	end
---end
---io.close(file)
 file = io.open("data/list.txt", "r")
 if file then
 	for line in file:lines("l") do
@@ -41,11 +32,6 @@ if file then
 end
 
 function finalize()
-	--file = io.open("nnids.txt", "w")
-	--for k,v in ipairs(nnids) do
-	--	file:write(k..","..v.."\n")
-	--end
-	--file:close()
 	file = io.open("data/records.txt", "w")
 	cur = next(records)
 	while cur ~= nil do
@@ -60,11 +46,6 @@ function finalize()
 		cur = next(ordered_list, cur)
 	end
 	file:close()
-end
-
-
-function rawMessageHandler(str)
-	print("LUA: "..str)
 end
 
 function addPlayerToList(user, displayName)
@@ -129,12 +110,19 @@ commandHandlers["!list"] = function(user, displayName, isMod, command, arg)
 
 	listString = ""
 	i = 1
+	needComma = false
 
 	while cur ~= nil do
-		if i > 1 then
+		if #listString > 100 then
+			asb.SendMessage(listString)
+			listString = ""
+			needComma = false
+		end
+		if needComma then
 			listString = listString .. ", "
 		end
 		listString = listString .. i .. ". " .. list[ordered_list[cur] ]
+		needComma = true
 		i = i + 1
 		cur = next(ordered_list, cur)
 	end
@@ -151,6 +139,7 @@ commandHandlers["!resetlist"] = function(user, displayName, isMod, command, arg)
 	list = {}
 	ordered_list = {}
 	asb.SendMessage("List reset.")
+	updateChallengerText()
 end
 commandHandlers["!open"] = function(user, displayName, isMod, command, arg)
 	if not isMod then return end
@@ -162,6 +151,21 @@ commandHandlers["!close"] = function(user, displayName, isMod, command, arg)
 	listOpen = false
 	asb.SendMessage("List is now closed!")
 end
+function updateChallengerText()
+	front = next(ordered_list)
+	if front ~= nil then
+		file = io.open("outputs/player.txt", "w")
+		file:write(list[ordered_list[front] ])
+		file:close()
+	else
+		file = io.open("outputs/player.txt", "w")
+		file:write("no challengers")
+		file:close()
+	end
+end
+
+updateChallengerText()
+
 commandHandlers["!next"] = function(user, displayName, isMod, command, arg)
 	if not isMod then return end
 	front = next(ordered_list)
@@ -188,6 +192,7 @@ commandHandlers["!next"] = function(user, displayName, isMod, command, arg)
 		if front ~= nil then
 			asb.SendMessage("Next player up: "..list[ordered_list[front] ].."!")
 		end
+		updateChallengerText()
 	end
 end
 commandHandlers["!win"] = commandHandlers["!next"]
@@ -237,8 +242,6 @@ function channelMessageHandler(user, displayName, message, isMod)
 	end
 end
 
-
---asb.RegisterRawMessageHandler(rawMessageHandler)
 asb.RegisterChannelMessageHandler(channelMessageHandler)
 asb.RegisterFinalizer(finalize)
 
