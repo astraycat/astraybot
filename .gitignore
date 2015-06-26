@@ -38,6 +38,6 @@ Debug/
 Release/
 *.user
 *.swp
-astraybot/scripts/outputs/
+astraybot/outputs/
 astraybot/list.txt
 astraybot/records.txt
