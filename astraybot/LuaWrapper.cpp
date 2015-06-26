@@ -2,6 +2,8 @@
 #include "LuaWrapper.h"
 #include <string>
 #include <array>
+#include <locale>
+#include <codecvt>
 
 #include "IrcConnection.h"
 
@@ -150,16 +152,29 @@ LuaWrapper::LuaWrapper(IrcConnection* ircConnection)
 	lua_getglobal(m_L, "__asb");
 	lua_getfield(m_L, -1, "dumpfunc");
 
-	if (luaL_loadfile(m_L, "scripts/test.lua") != LUA_OK)
+	WIN32_FIND_DATAW findData;
+	auto handle = FindFirstFile(L"scripts\\*.lua", &findData);
+	if (handle != INVALID_HANDLE_VALUE)
 	{
-		assert(lua_isstring(m_L, -1));
-		printf("Error loading file: %s\n", lua_tostring(m_L, -1));
-		lua_pop(m_L, 2);
+		do 
+		{
+			std::wstring_convert<std::codecvt_utf8<wchar_t>> conv;
+			auto fileName = std::string{ "scripts/" } +conv.to_bytes(findData.cFileName);
+			printf("Loading file: %s\n", fileName.c_str());
+			if (luaL_loadfile(m_L, fileName.c_str()) != LUA_OK)
+			{
+				assert(lua_isstring(m_L, -1));
+				printf("Error loading file: %s\n", lua_tostring(m_L, -1));
+				lua_pop(m_L, 2);
+			}
+			else
+			{
+				CHECK_LUA(lua_pcall(m_L, 0, 0, -2));
+			}
+
+		} while (FindNextFile(handle, &findData) != 0);
 	}
-	else
-	{
-		CHECK_LUA(lua_pcall(m_L, 0, 0, -2));
-	}
+
 
 	lua_pop(m_L, 2);
 }
@@ -182,8 +197,9 @@ namespace
 		push(L, std::forward<T>(arg));
 		pushArgs(L, std::forward<Args>(args)...);
 	}
-	void pushArgs(lua_State* L)
-	{}
+	void pushArgs(lua_State*)
+	{
+	}
 	template<typename... Args>
 	void doFunc(lua_State* L, const char* const table, Args&&...args)
 	{
