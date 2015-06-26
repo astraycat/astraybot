@@ -20,6 +20,20 @@ int _tmain(int argc, _TCHAR* argv[])
 	const std::wstring port = argv[4];
 	const std::string channel = conv.to_bytes(argv[5]);
 
+	// check if output and data directories exist, otherwise make them
+	DWORD ftype = GetFileAttributes(L"outputs");
+	if (ftype == INVALID_FILE_ATTRIBUTES)
+	{
+		CreateDirectory(L"outputs", nullptr);
+	}
+	ftype = GetFileAttributes(L"data");
+	if (ftype == INVALID_FILE_ATTRIBUTES)
+	{
+		CreateDirectory(L"data", nullptr);
+	}
+
+	
+
 	WSADATA data{};
 	WSAStartup(MAKEWORD(2,2), &data);
 

@@ -39,5 +39,4 @@ Release/
 *.user
 *.swp
 astraybot/outputs/
-astraybot/list.txt
-astraybot/records.txt
+astraybot/data/

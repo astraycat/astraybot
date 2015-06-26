@@ -12,7 +12,7 @@ listOpen = true
 --	end
 --end
 --io.close(file)
-file = io.open("list.txt", "r")
+file = io.open("data/list.txt", "r")
 if file then
 	for line in file:lines("l") do
 		displayName = string.match(line, "(%w+)")
@@ -23,7 +23,7 @@ if file then
 		end
 	end
 end
-file = io.open("records.txt", "r")
+file = io.open("data/records.txt", "r")
 if file then
 	for line in file:lines("l") do
 		user, wins, losses = string.match(line, "(%w+),(%d+),(%d+)")
@@ -46,14 +46,14 @@ function finalize()
 	--	file:write(k..","..v.."\n")
 	--end
 	--file:close()
-	file = io.open("records.txt", "w")
+	file = io.open("data/records.txt", "w")
 	cur = next(records)
 	while cur ~= nil do
 		file:write(cur..","..records[cur].wins..","..records[cur].losses.."\n")
 		cur = next(records, cur)
 	end
 	file:close()
-	file = io.open("list.txt", "w")
+	file = io.open("data/list.txt", "w")
 	cur = next(ordered_list)
 	while cur ~= nil do
 		file:write(ordered_list[cur].."\n")
