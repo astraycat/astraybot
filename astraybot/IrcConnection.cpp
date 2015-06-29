@@ -178,11 +178,15 @@ IrcConnection::PoolString IrcConnection::extractUser(const std::ssub_match& matc
 
 IrcConnection::PoolString IrcConnection::extractDisplayName(const std::ssub_match& match)
 {
-	static const std::regex displayNameRegex{ R"(display-name=([^; ]+))" };
+	static const std::regex displayNameRegex{ R"(display-name=([^; ]*))" };
 	std::smatch matches;
 	if (std::regex_search(match.first, match.second, matches, displayNameRegex))
 	{
 		return matchToBuf(matches[1]);
+	}
+	else
+	{
+		return{ nullptr,{this} };
 	}
 	assert(false);
 	return{ nullptr, {this} };
@@ -243,6 +247,10 @@ void IrcConnection::handleIncoming()
 						{
 							auto user = extractUser(matches[2]);
 							auto display = extractDisplayName(matches[1]);
+							if (!display || display->empty())
+							{
+								*display = *user;
+							}
 							auto message = matchToBuf(matches[5]);
 							auto isMod = extractIsMod(matches[1]);
 							
